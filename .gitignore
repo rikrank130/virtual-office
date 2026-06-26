@@ -1,0 +1,12 @@
+node_modules
+dist
+*.local
+
+# サーバの会話DB（実行時に生成）
+server/data/
+
+# ログ・エディタ
+*.log
+.DS_Store
+.vscode/*
+!.vscode/launch.json
