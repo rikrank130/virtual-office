@@ -7,7 +7,7 @@ oVice / Gather のような2Dバーチャル空間を、シニアでも迷わず
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
+npm run dev:all # 必ず allで実行してください
 ```
 
 ビルド: `npm run build` → `npm run preview`
