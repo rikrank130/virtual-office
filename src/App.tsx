@@ -58,6 +58,7 @@ export default function App() {
   const [remotes, setRemotes] = useState<UserPublic[]>([])      // 在室中の他ユーザー（描画用）
   const [chats, setChats] = useState<Record<string, ChatMessage[]>>({}) // peerId -> 会話
   const [online, setOnline] = useState(false)                   // サーバ接続状態
+  const [bubbles, setBubbles] = useState<Record<string, { text: string; seq: number }>>({}) // 発言の吹き出し
 
   // 位置などは ref で保持し、毎フレーム DOM を直接更新
   const posRef = useRef<Vec>({ x: WORLD.w / 2, y: WORLD.h / 2 })
@@ -68,6 +69,7 @@ export default function App() {
   const keysRef = useRef<Record<string, boolean>>({})
   const joyVecRef = useRef<Vec>({ x: 0, y: 0 })
   const sentRef = useRef<Vec>({ x: -999, y: -999 }) // 最後にサーバへ送った位置
+  const bubbleSeqRef = useRef(0)
 
   const dragRef = useRef<DragState>({ id: null, downX: 0, downY: 0, downT: 0, moved: false, active: false })
   const lastTapRef = useRef({ t: 0, x: 0, y: 0 })
@@ -77,6 +79,20 @@ export default function App() {
   const otherElsRef = useRef<Record<string, HTMLDivElement | null>>({})
   const joyKnobRef = useRef<HTMLDivElement>(null)
   const netRef = useRef<Net | null>(null)
+
+  // アバターの上に発言を吹き出し表示（一定時間で自動的に消える）
+  const speak = (id: string, text: string) => {
+    const seq = ++bubbleSeqRef.current
+    setBubbles((prev) => ({ ...prev, [id]: { text, seq } }))
+    window.setTimeout(() => {
+      setBubbles((prev) => {
+        if (prev[id]?.seq !== seq) return prev
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+    }, 4500)
+  }
 
   // ===== リアルタイム接続 =====
   useEffect(() => {
@@ -117,6 +133,7 @@ export default function App() {
             const m = msg.message
             const peer = m.fromId === selfId ? m.toId : m.fromId
             setChats((prev) => ({ ...prev, [peer]: [...(prev[peer] ?? []), m] }))
+            speak(m.fromId, m.text) // 発言者の頭上に吹き出し
             break
           }
           case 'history': {
@@ -364,10 +381,12 @@ export default function App() {
 
           <div className="fountain" style={{ left: pct(WORLD.w / 2, WORLD.w), top: pct(WORLD.h / 2, WORLD.h) }}>⛲</div>
 
-          {/* ダミー(bot) */}
+          {/* ダミー(bot)＝NPC。色と「NPC」バッジで実ユーザーと区別 */}
           {peopleRef.current.map((person) => (
-            <div key={person.id} className="avatar other"
+            <div key={person.id} className="avatar other bot"
               ref={(el) => { otherElsRef.current[person.id] = el }}>
+              {bubbles[person.id] && <div className="speech-bubble">{bubbles[person.id].text}</div>}
+              <span className="npc-badge">NPC</span>
               <div className="talk-hint" aria-hidden="true">💬</div>
               <div className="avatar-face">{person.face}</div>
               <div className="avatar-name">{person.name}</div>
@@ -378,6 +397,7 @@ export default function App() {
           {remotes.map((u) => (
             <div key={u.id} className="avatar other user"
               ref={(el) => { otherElsRef.current[u.id] = el; const rp = remotePosRef.current[u.id]; if (el && rp) place(el, rp.x, rp.y) }}>
+              {bubbles[u.id] && <div className="speech-bubble">{bubbles[u.id].text}</div>}
               <div className="talk-hint" aria-hidden="true">💬</div>
               <div className="avatar-face">{u.face}</div>
               <div className="avatar-name">{u.name}</div>
@@ -386,6 +406,7 @@ export default function App() {
 
           {/* 自分 */}
           <div className="avatar me" ref={meElRef}>
+            {bubbles[selfId] && <div className="speech-bubble">{bubbles[selfId].text}</div>}
             <div className="avatar-face">{me.face}</div>
             <div className="avatar-name">あなた</div>
           </div>
@@ -421,6 +442,7 @@ export default function App() {
           onSendUser={near.kind === 'user'
             ? (text) => netRef.current?.send({ type: 'chat', toId: near.user.id, text })
             : undefined}
+          onSpeak={speak}
           onClose={() => setChatOpen(false)}
         />
       )}

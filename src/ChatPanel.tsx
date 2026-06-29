@@ -76,7 +76,10 @@ function ChatView({ face, name, bubbles, onSend, onClose, onReset }: ChatViewPro
 // ===== ダミー(bot)：ローカル保存＋定型の自動返信 =====
 const greetingMessage = (person: Person): Message => ({ from: 'them', text: person.greeting, at: Date.now() })
 
-function BotChat({ person, onClose }: { person: Person; onClose: () => void }) {
+function BotChat(
+  { person, selfId, onSpeak, onClose }:
+  { person: Person; selfId: string; onSpeak?: (id: string, text: string) => void; onClose: () => void },
+) {
   const [messages, setMessages] = useState<Message[]>(() => {
     const stored = loadMessages(person.id)
     return stored.length ? stored : [greetingMessage(person)]
@@ -86,10 +89,12 @@ function BotChat({ person, onClose }: { person: Person; onClose: () => void }) {
 
   const onSend = (text: string) => {
     setMessages((m) => [...m, { from: 'me', text, at: Date.now() }])
+    onSpeak?.(selfId, text) // 自分の頭上に吹き出し
     const themSoFar = messages.filter((x) => x.from === 'them').length
     const reply = person.replies[Math.max(0, themSoFar - 1) % person.replies.length]
     window.setTimeout(() => {
       setMessages((m) => [...m, { from: 'them', text: reply, at: Date.now() }])
+      onSpeak?.(person.id, reply) // 相手(NPC)の頭上に吹き出し
     }, 700)
   }
 
@@ -131,14 +136,16 @@ export interface ChatPanelProps {
   companion: Companion
   selfId: string
   onClose: () => void
+  // 発言を頭上の吹き出しに表示するコールバック
+  onSpeak?: (id: string, text: string) => void
   // 実ユーザー会話のときのみ使う
   messages?: ChatMessage[]
   onSendUser?: (text: string) => void
 }
 
-export default function ChatPanel({ companion, selfId, onClose, messages, onSendUser }: ChatPanelProps) {
+export default function ChatPanel({ companion, selfId, onClose, onSpeak, messages, onSendUser }: ChatPanelProps) {
   if (companion.kind === 'bot') {
-    return <BotChat person={companion.person} onClose={onClose} />
+    return <BotChat person={companion.person} selfId={selfId} onSpeak={onSpeak} onClose={onClose} />
   }
   return (
     <UserChat
